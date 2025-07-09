@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { processTimestamps } from '@/utils/timestampUtils';
+import { useToast } from '@/hooks/use-toast';
 
 export const useSaveTsManager = () => {
   const [showSaveTsDialog, setShowSaveTsDialog] = useState(false);
@@ -10,6 +11,7 @@ export const useSaveTsManager = () => {
   
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressRef = useRef(false);
+  const { toast } = useToast();
 
   // Save Ts button handlers
   const handleSaveTsMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
@@ -64,11 +66,47 @@ export const useSaveTsManager = () => {
       console.log('💾 SaveTsManager: Attempting to write to file at path:', locationInput);
       
       try {
+        // First check if we have permissions
+        const permissions = await Filesystem.checkPermissions();
+        console.log('💾 SaveTsManager: Current permissions:', permissions);
+        
+        if (permissions.publicStorage !== 'granted') {
+          console.log('💾 SaveTsManager: Requesting permissions...');
+          const requestResult = await Filesystem.requestPermissions();
+          console.log('💾 SaveTsManager: Permission request result:', requestResult);
+          
+          if (requestResult.publicStorage !== 'granted') {
+            console.log('💾 SaveTsManager: Permission denied, trying Documents directory');
+            
+            // Try using Documents directory instead
+            await Filesystem.writeFile({
+              path: `Documents/${locationInput.split('/').pop()}`,
+              data: fileContent,
+              directory: Directory.Documents,
+              encoding: Encoding.UTF8
+            });
+            
+            toast({
+              title: "File saved successfully",
+              description: `Saved to Documents/${locationInput.split('/').pop()} due to permission restrictions`,
+            });
+            
+            console.log('💾 SaveTsManager: File written successfully to Documents directory');
+            return;
+          }
+        }
+
+        // Try to write to the requested path
         await Filesystem.writeFile({
           path: locationInput,
           data: fileContent,
           directory: Directory.ExternalStorage,
           encoding: Encoding.UTF8
+        });
+        
+        toast({
+          title: "File saved successfully",
+          description: `Saved to ${locationInput}`,
         });
         
         console.log('💾 SaveTsManager: File written successfully to:', locationInput);
@@ -81,6 +119,13 @@ export const useSaveTsManager = () => {
           stack: error.stack,
           path: locationInput,
           antidelay: antidelayInput
+        });
+        
+        // Show error toast to user
+        toast({
+          title: "Error saving file",
+          description: `Failed to save file: ${error.message}`,
+          variant: "destructive"
         });
       }
     }
