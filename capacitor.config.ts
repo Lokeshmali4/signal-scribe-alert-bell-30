@@ -34,6 +34,10 @@ const config: CapacitorConfig = {
       permissions: {
         external: 'read-write'
       }
+    },
+    Share: {
+      subject: 'Share Timestamps',
+      dialogTitle: 'Save Timestamps File'
     }
   },
 };

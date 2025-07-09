@@ -9,15 +9,18 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FileText, FolderOpen } from 'lucide-react';
+import { FileText, FolderOpen, Info } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface SaveTsDialogProps {
   open: boolean;
   locationValue: string;
   antidelayValue: string;
+  selectedFileUri: string;
   onLocationChange: (value: string) => void;
   onAntidelayChange: (value: string) => void;
   onBrowseFile: () => void;
+  onSelectFile: () => void;
   onSave: () => void;
   onCancel: () => void;
 }
@@ -26,9 +29,11 @@ const SaveTsDialog = ({
   open,
   locationValue,
   antidelayValue,
+  selectedFileUri,
   onLocationChange,
   onAntidelayChange,
   onBrowseFile,
+  onSelectFile,
   onSave,
   onCancel
 }: SaveTsDialogProps) => {
@@ -40,16 +45,26 @@ const SaveTsDialog = ({
         </DialogHeader>
         
         <div className="space-y-4">
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              For Android: Use "Select File" to choose your existing timestamps.txt file. 
+              This ensures proper file access permissions.
+            </AlertDescription>
+          </Alert>
+          
           <div className="space-y-2">
-            <Label htmlFor="location">File Location</Label>
+            <Label>File Selection</Label>
             <div className="flex gap-2">
-              <Input
-                id="location"
-                placeholder="e.g., Documents/timestamps.txt or Download/my-file.txt"
-                value={locationValue}
-                onChange={(e) => onLocationChange(e.target.value)}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onSelectFile}
                 className="flex-1"
-              />
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Select File
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -59,6 +74,21 @@ const SaveTsDialog = ({
                 <FolderOpen className="h-4 w-4" />
               </Button>
             </div>
+            {selectedFileUri && (
+              <p className="text-sm text-muted-foreground">
+                Selected: {selectedFileUri}
+              </p>
+            )}
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="location">Fallback Path (if file selection unavailable)</Label>
+            <Input
+              id="location"
+              placeholder="e.g., Documents/timestamps.txt"
+              value={locationValue}
+              onChange={(e) => onLocationChange(e.target.value)}
+            />
           </div>
           
           <div className="space-y-2">

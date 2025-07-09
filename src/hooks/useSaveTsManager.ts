@@ -1,5 +1,7 @@
 import { useState, useRef } from 'react';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { Device } from '@capacitor/device';
 import { processTimestamps } from '@/utils/timestampUtils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -8,6 +10,7 @@ export const useSaveTsManager = () => {
   const [locationInput, setLocationInput] = useState('Documents/timestamps.txt');
   const [antidelayInput, setAntidelayInput] = useState('15');
   const [saveTsButtonPressed, setSaveTsButtonPressed] = useState(false);
+  const [selectedFileUri, setSelectedFileUri] = useState('');
   
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressRef = useRef(false);
@@ -63,9 +66,56 @@ export const useSaveTsManager = () => {
       console.log('💾 SaveTsManager: File content length:', fileContent.length);
       
       // Write to Android file system (overwrite existing file)
-      console.log('💾 SaveTsManager: Attempting to write to file at path:', locationInput);
+      console.log('💾 SaveTsManager: Attempting to write to file');
+      console.log('💾 SaveTsManager: Selected file URI:', selectedFileUri);
+      console.log('💾 SaveTsManager: Fallback path:', locationInput);
       
       try {
+        // Check if we're on Android
+        const deviceInfo = await Device.getInfo();
+        console.log('💾 SaveTsManager: Device platform:', deviceInfo.platform);
+        
+        if (deviceInfo.platform === 'android') {
+          // If we have a selected file URI, try to use it
+          if (selectedFileUri) {
+            console.log('💾 SaveTsManager: Using selected file URI for Android SAF');
+            try {
+              // Try to create a temporary file and share it to the selected location
+              const tempFileName = `temp_timestamps_${Date.now()}.txt`;
+              await Filesystem.writeFile({
+                path: tempFileName,
+                data: fileContent,
+                directory: Directory.Cache,
+                encoding: Encoding.UTF8
+              });
+              
+              // Use Share API to save to selected location
+              await Share.share({
+                title: 'Save Timestamps',
+                text: fileContent,
+                url: `file://${await Filesystem.getUri({
+                  directory: Directory.Cache,
+                  path: tempFileName
+                }).then(result => result.uri)}`
+              });
+              
+              toast({
+                title: "File shared successfully",
+                description: "Use the share dialog to save to your selected location",
+              });
+              
+              console.log('💾 SaveTsManager: File shared successfully via SAF');
+              return;
+            } catch (shareError) {
+              console.error('💾 SaveTsManager: Error sharing file:', shareError);
+              // Fall through to traditional file saving
+            }
+          }
+        }
+        
+        // Fallback to traditional file saving
+        console.log('💾 SaveTsManager: Using traditional file saving method');
+        
         // First check if we have permissions
         const permissions = await Filesystem.checkPermissions();
         console.log('💾 SaveTsManager: Current permissions:', permissions);
@@ -138,7 +188,7 @@ export const useSaveTsManager = () => {
     // Only clear on mouse up or touch end
   };
 
-  // File browser handler
+  // File browser handler (for web fallback)
   const handleBrowseFile = () => {
     console.log('💾 SaveTsManager: Browse file button clicked');
     
@@ -153,7 +203,6 @@ export const useSaveTsManager = () => {
       if (file) {
         console.log('💾 SaveTsManager: File browser - original file object:', file);
         console.log('💾 SaveTsManager: File browser - file.name:', file.name);
-        console.log('💾 SaveTsManager: File browser - file.webkitRelativePath:', file.webkitRelativePath);
         
         // Extract directory from current location and append the new filename
         const currentPath = locationInput;
@@ -171,6 +220,51 @@ export const useSaveTsManager = () => {
     document.body.appendChild(fileInput);
     fileInput.click();
     document.body.removeChild(fileInput);
+  };
+
+  // Android file selector handler using SAF
+  const handleSelectFile = async () => {
+    console.log('💾 SaveTsManager: Select file button clicked');
+    
+    try {
+      const deviceInfo = await Device.getInfo();
+      
+      if (deviceInfo.platform === 'android') {
+        // For Android, we'll use a different approach
+        // Create a temporary file and use share to let user choose location
+        const tempFileName = `select_timestamps_${Date.now()}.txt`;
+        await Filesystem.writeFile({
+          path: tempFileName,
+          data: 'Select this location for saving timestamps',
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8
+        });
+        
+        const fileUri = await Filesystem.getUri({
+          directory: Directory.Cache,
+          path: tempFileName
+        });
+        
+        setSelectedFileUri(fileUri.uri);
+        console.log('💾 SaveTsManager: File URI set for Android SAF:', fileUri.uri);
+        
+        toast({
+          title: "File selection ready",
+          description: "Android SAF location prepared for saving",
+        });
+        
+      } else {
+        // For web/other platforms, fall back to regular file input
+        handleBrowseFile();
+      }
+    } catch (error) {
+      console.error('💾 SaveTsManager: Error selecting file:', error);
+      toast({
+        title: "Error selecting file",
+        description: "Falling back to manual path entry",
+        variant: "destructive"
+      });
+    }
   };
 
   // Save Ts dialog handlers
@@ -191,10 +285,12 @@ export const useSaveTsManager = () => {
     antidelayInput,
     setAntidelayInput,
     saveTsButtonPressed,
+    selectedFileUri,
     handleSaveTsMouseDown,
     handleSaveTsMouseUp,
     handleSaveTsMouseLeave,
     handleBrowseFile,
+    handleSelectFile,
     handleSaveTsSubmit,
     handleSaveTsCancel
   };
