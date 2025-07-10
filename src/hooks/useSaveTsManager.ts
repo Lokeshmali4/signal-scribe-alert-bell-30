@@ -253,12 +253,20 @@ export const useSaveTsManager = () => {
   // Native Android SAF document picker using Capacitor plugin
   const openAndroidDocumentPicker = async (): Promise<{uri: string, name?: string} | null> => {
     try {
+      // Check if SafPlugin is available (only in native Android environment)
+      if (typeof (window as any).SafPlugin === 'undefined') {
+        console.log('💾 SaveTsManager: SafPlugin not available in web environment');
+        alert('File selection requires running the app on an Android device. Please export to GitHub, build the Android app, and run on device.');
+        return null;
+      }
+      
       // Use the SafPlugin to open document picker
       const result = await (window as any).SafPlugin.openDocumentPicker();
       console.log('💾 SaveTsManager: SAF document picker result:', result);
       return result;
     } catch (error) {
       console.error('💾 SaveTsManager: SAF document picker error:', error);
+      alert('Error accessing file picker. Please ensure you are running on Android device.');
       return null;
     }
   };
