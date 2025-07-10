@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
-import { Device } from '@capacitor/device';
 import { processTimestamps } from '@/utils/timestampUtils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -9,7 +8,6 @@ export const useSaveTsManager = () => {
   const [locationInput, setLocationInput] = useState('Documents/timestamps.txt');
   const [antidelayInput, setAntidelayInput] = useState('15');
   const [saveTsButtonPressed, setSaveTsButtonPressed] = useState(false);
-  const [selectedFileUri, setSelectedFileUri] = useState('');
   
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressRef = useRef(false);
@@ -65,49 +63,9 @@ export const useSaveTsManager = () => {
       console.log('💾 SaveTsManager: File content length:', fileContent.length);
       
       // Write to Android file system (overwrite existing file)
-      console.log('💾 SaveTsManager: Attempting to write to file');
-      console.log('💾 SaveTsManager: Selected file URI:', selectedFileUri);
-      console.log('💾 SaveTsManager: Fallback path:', locationInput);
+      console.log('💾 SaveTsManager: Attempting to write to file at path:', locationInput);
       
       try {
-        // Check if we're on Android
-        const deviceInfo = await Device.getInfo();
-        console.log('💾 SaveTsManager: Device platform:', deviceInfo.platform);
-        
-        if (deviceInfo.platform === 'android') {
-          // If we have a selected file URI from SAF, use it directly
-          if (selectedFileUri) {
-            console.log('💾 SaveTsManager: Using SAF URI to write file:', selectedFileUri);
-            try {
-              // Write directly to the SAF URI using native Android methods
-              const writeResult = await writeToSafUri(selectedFileUri, fileContent);
-              
-              if (writeResult.success) {
-                toast({
-                  title: "File saved successfully",
-                  description: "Timestamps saved to your selected file",
-                });
-                
-                console.log('💾 SaveTsManager: File written successfully via SAF');
-                return;
-              } else {
-                throw new Error(writeResult.error || 'Failed to write to SAF URI');
-              }
-            } catch (safError) {
-              console.error('💾 SaveTsManager: Error writing to SAF URI:', safError);
-              toast({
-                title: "SAF write failed",
-                description: "Falling back to alternative save method",
-                variant: "destructive"
-              });
-              // Fall through to traditional file saving
-            }
-          }
-        }
-        
-        // Fallback to traditional file saving
-        console.log('💾 SaveTsManager: Using traditional file saving method');
-        
         // First check if we have permissions
         const permissions = await Filesystem.checkPermissions();
         console.log('💾 SaveTsManager: Current permissions:', permissions);
@@ -180,7 +138,7 @@ export const useSaveTsManager = () => {
     // Only clear on mouse up or touch end
   };
 
-  // File browser handler (for web fallback)
+  // File browser handler
   const handleBrowseFile = () => {
     console.log('💾 SaveTsManager: Browse file button clicked');
     
@@ -195,6 +153,7 @@ export const useSaveTsManager = () => {
       if (file) {
         console.log('💾 SaveTsManager: File browser - original file object:', file);
         console.log('💾 SaveTsManager: File browser - file.name:', file.name);
+        console.log('💾 SaveTsManager: File browser - file.webkitRelativePath:', file.webkitRelativePath);
         
         // Extract directory from current location and append the new filename
         const currentPath = locationInput;
@@ -212,71 +171,6 @@ export const useSaveTsManager = () => {
     document.body.appendChild(fileInput);
     fileInput.click();
     document.body.removeChild(fileInput);
-  };
-
-  // Android file selector handler using SAF (proper implementation)
-  const handleSelectFile = async () => {
-    console.log('💾 SaveTsManager: Select file button clicked - implementing proper SAF');
-    
-    try {
-      const deviceInfo = await Device.getInfo();
-      
-      if (deviceInfo.platform === 'android') {
-        // Use Android's native document picker via ACTION_OPEN_DOCUMENT
-        // This will request persistent URI permissions for the selected file
-        const safResult = await openAndroidDocumentPicker();
-        
-        if (safResult && safResult.uri) {
-          setSelectedFileUri(safResult.uri);
-          console.log('💾 SaveTsManager: SAF URI obtained:', safResult.uri);
-          
-          toast({
-            title: "File selected successfully",
-            description: `Selected: ${safResult.name || 'timestamps.txt'}`,
-          });
-        }
-        
-      } else {
-        // For web/other platforms, fall back to regular file input
-        handleBrowseFile();
-      }
-    } catch (error) {
-      console.error('💾 SaveTsManager: Error selecting file:', error);
-      toast({
-        title: "Error selecting file",
-        description: "Falling back to manual path entry",
-        variant: "destructive"
-      });
-    }
-  };
-
-  // Native Android SAF document picker using Capacitor plugin
-  const openAndroidDocumentPicker = async (): Promise<{uri: string, name?: string} | null> => {
-    try {
-      // Use the SafPlugin to open document picker
-      const result = await (window as any).SafPlugin.openDocumentPicker();
-      console.log('💾 SaveTsManager: SAF document picker result:', result);
-      return result;
-    } catch (error) {
-      console.error('💾 SaveTsManager: SAF document picker error:', error);
-      return null;
-    }
-  };
-
-  // Write content to SAF URI using Capacitor plugin
-  const writeToSafUri = async (uri: string, content: string): Promise<{success: boolean, error?: string}> => {
-    try {
-      // Use the SafPlugin to write to SAF URI
-      const result = await (window as any).SafPlugin.writeToSafUri({
-        uri: uri,
-        content: content
-      });
-      console.log('💾 SaveTsManager: SAF write result:', result);
-      return result;
-    } catch (error) {
-      console.error('💾 SaveTsManager: SAF write error:', error);
-      return { success: false, error: error.message };
-    }
   };
 
   // Save Ts dialog handlers
@@ -297,12 +191,10 @@ export const useSaveTsManager = () => {
     antidelayInput,
     setAntidelayInput,
     saveTsButtonPressed,
-    selectedFileUri,
     handleSaveTsMouseDown,
     handleSaveTsMouseUp,
     handleSaveTsMouseLeave,
     handleBrowseFile,
-    handleSelectFile,
     handleSaveTsSubmit,
     handleSaveTsCancel
   };

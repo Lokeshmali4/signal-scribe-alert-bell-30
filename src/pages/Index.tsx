@@ -20,13 +20,11 @@ const Index = () => {
     setLocationInput,
     saveTsAntidelayInput,
     setSaveTsAntidelayInput,
-    selectedFileUri,
     handleSaveSignals,
     handleSaveTsMouseDown,
     handleSaveTsMouseUp,
     handleSaveTsMouseLeave,
     handleBrowseFile,
-    handleSelectFile,
     handleSaveTsSubmit,
     handleSaveTsCancel,
     handleAntidelaySubmit,
@@ -64,11 +62,9 @@ const Index = () => {
         open={showSaveTsDialog}
         locationValue={locationInput}
         antidelayValue={saveTsAntidelayInput}
-        selectedFileUri={selectedFileUri}
         onLocationChange={setLocationInput}
         onAntidelayChange={setSaveTsAntidelayInput}
         onBrowseFile={handleBrowseFile}
-        onSelectFile={handleSelectFile}
         onSave={handleSaveTsSubmit}
         onCancel={handleSaveTsCancel}
       />
