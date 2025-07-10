@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
-import { Share } from '@capacitor/share';
 import { Device } from '@capacitor/device';
 import { processTimestamps } from '@/utils/timestampUtils';
 import { useToast } from '@/hooks/use-toast';
@@ -76,38 +75,31 @@ export const useSaveTsManager = () => {
         console.log('💾 SaveTsManager: Device platform:', deviceInfo.platform);
         
         if (deviceInfo.platform === 'android') {
-          // If we have a selected file URI, try to use it
+          // If we have a selected file URI from SAF, use it directly
           if (selectedFileUri) {
-            console.log('💾 SaveTsManager: Using selected file URI for Android SAF');
+            console.log('💾 SaveTsManager: Using SAF URI to write file:', selectedFileUri);
             try {
-              // Try to create a temporary file and share it to the selected location
-              const tempFileName = `temp_timestamps_${Date.now()}.txt`;
-              await Filesystem.writeFile({
-                path: tempFileName,
-                data: fileContent,
-                directory: Directory.Cache,
-                encoding: Encoding.UTF8
-              });
+              // Write directly to the SAF URI using native Android methods
+              const writeResult = await writeToSafUri(selectedFileUri, fileContent);
               
-              // Use Share API to save to selected location
-              await Share.share({
-                title: 'Save Timestamps',
-                text: fileContent,
-                url: `file://${await Filesystem.getUri({
-                  directory: Directory.Cache,
-                  path: tempFileName
-                }).then(result => result.uri)}`
-              });
-              
+              if (writeResult.success) {
+                toast({
+                  title: "File saved successfully",
+                  description: "Timestamps saved to your selected file",
+                });
+                
+                console.log('💾 SaveTsManager: File written successfully via SAF');
+                return;
+              } else {
+                throw new Error(writeResult.error || 'Failed to write to SAF URI');
+              }
+            } catch (safError) {
+              console.error('💾 SaveTsManager: Error writing to SAF URI:', safError);
               toast({
-                title: "File shared successfully",
-                description: "Use the share dialog to save to your selected location",
+                title: "SAF write failed",
+                description: "Falling back to alternative save method",
+                variant: "destructive"
               });
-              
-              console.log('💾 SaveTsManager: File shared successfully via SAF');
-              return;
-            } catch (shareError) {
-              console.error('💾 SaveTsManager: Error sharing file:', shareError);
               // Fall through to traditional file saving
             }
           }
@@ -222,36 +214,27 @@ export const useSaveTsManager = () => {
     document.body.removeChild(fileInput);
   };
 
-  // Android file selector handler using SAF
+  // Android file selector handler using SAF (proper implementation)
   const handleSelectFile = async () => {
-    console.log('💾 SaveTsManager: Select file button clicked');
+    console.log('💾 SaveTsManager: Select file button clicked - implementing proper SAF');
     
     try {
       const deviceInfo = await Device.getInfo();
       
       if (deviceInfo.platform === 'android') {
-        // For Android, we'll use a different approach
-        // Create a temporary file and use share to let user choose location
-        const tempFileName = `select_timestamps_${Date.now()}.txt`;
-        await Filesystem.writeFile({
-          path: tempFileName,
-          data: 'Select this location for saving timestamps',
-          directory: Directory.Cache,
-          encoding: Encoding.UTF8
-        });
+        // Use Android's native document picker via ACTION_OPEN_DOCUMENT
+        // This will request persistent URI permissions for the selected file
+        const safResult = await openAndroidDocumentPicker();
         
-        const fileUri = await Filesystem.getUri({
-          directory: Directory.Cache,
-          path: tempFileName
-        });
-        
-        setSelectedFileUri(fileUri.uri);
-        console.log('💾 SaveTsManager: File URI set for Android SAF:', fileUri.uri);
-        
-        toast({
-          title: "File selection ready",
-          description: "Android SAF location prepared for saving",
-        });
+        if (safResult && safResult.uri) {
+          setSelectedFileUri(safResult.uri);
+          console.log('💾 SaveTsManager: SAF URI obtained:', safResult.uri);
+          
+          toast({
+            title: "File selected successfully",
+            description: `Selected: ${safResult.name || 'timestamps.txt'}`,
+          });
+        }
         
       } else {
         // For web/other platforms, fall back to regular file input
@@ -264,6 +247,35 @@ export const useSaveTsManager = () => {
         description: "Falling back to manual path entry",
         variant: "destructive"
       });
+    }
+  };
+
+  // Native Android SAF document picker using Capacitor plugin
+  const openAndroidDocumentPicker = async (): Promise<{uri: string, name?: string} | null> => {
+    try {
+      // Use the SafPlugin to open document picker
+      const result = await (window as any).SafPlugin.openDocumentPicker();
+      console.log('💾 SaveTsManager: SAF document picker result:', result);
+      return result;
+    } catch (error) {
+      console.error('💾 SaveTsManager: SAF document picker error:', error);
+      return null;
+    }
+  };
+
+  // Write content to SAF URI using Capacitor plugin
+  const writeToSafUri = async (uri: string, content: string): Promise<{success: boolean, error?: string}> => {
+    try {
+      // Use the SafPlugin to write to SAF URI
+      const result = await (window as any).SafPlugin.writeToSafUri({
+        uri: uri,
+        content: content
+      });
+      console.log('💾 SaveTsManager: SAF write result:', result);
+      return result;
+    } catch (error) {
+      console.error('💾 SaveTsManager: SAF write error:', error);
+      return { success: false, error: error.message };
     }
   };
 

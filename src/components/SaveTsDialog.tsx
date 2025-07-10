@@ -48,8 +48,9 @@ const SaveTsDialog = ({
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              For Android: Use "Select File" to choose your existing timestamps.txt file. 
-              This ensures proper file access permissions.
+              For Android: Use "Select File" to browse and select your existing timestamps.txt file 
+              in the Lokiring folder. This uses Android's Storage Access Framework (SAF) to get 
+              proper write permissions to your chosen file location.
             </AlertDescription>
           </Alert>
           

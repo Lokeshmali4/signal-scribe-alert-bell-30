@@ -38,6 +38,9 @@ const config: CapacitorConfig = {
     Share: {
       subject: 'Share Timestamps',
       dialogTitle: 'Save Timestamps File'
+    },
+    SafPlugin: {
+      class: 'com.example.app.SafPlugin'
     }
   },
 };
